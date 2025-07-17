@@ -1,0 +1,230 @@
+﻿@page "/"
+@using group11_traveless.Models
+@using group11_traveless.Services
+@inject FlightService FlightService
+
+<PageTitle>Traveless</PageTitle>
+
+<style>
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .button-group {
+        margin: 20px 0;
+        display: flex;
+        gap: 10px;
+    }
+
+    .form-group {
+        margin: 15px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .flight-results, .reservation-results {
+        margin-top: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+    }
+
+    .flight-card, .reservation-card {
+        padding: 15px;
+        margin: 10px 0;
+        border: 1px solid #eee;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+        .flight-card:hover, .reservation-card:hover {
+            background-color: #f5f5f5;
+        }
+
+    .status {
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+
+        .status.active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+</style>
+
+<div class="container">
+    <h1 class="header">Welcome to Traveless</h1>
+
+    <div class="button-group">
+        <button class="btn btn-primary" @onclick="() => ShowSection(1)">
+            Search Flights
+        </button>
+        <button class="btn btn-secondary" @onclick="() => ShowSection(2)">
+            Manage Reservations
+        </button>
+    </div>
+
+    @if (showFlights)
+    {
+        <div class="flight-search">
+            <h3>Find Flights</h3>
+
+            <div class="form-group">
+                <label>From:</label>
+                <select @bind="selectedOrigin">
+                    <option value="">Any</option>
+                    @foreach (var airport in FlightService.Airports)
+                    {
+                        <option value="@airport.Code">@airport</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>To:</label>
+                <select @bind="selectedDestination">
+                    <option value="">Any</option>
+                    @foreach (var airport in FlightService.Airports)
+                    {
+                        <option value="@airport.Code">@airport</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Day:</label>
+                <select @bind="selectedDay">
+                    <option value="">Any</option>
+                    @foreach (var day in daysOfWeek)
+                    {
+                        <option value="@day">@day</option>
+                    }
+                </select>
+            </div>
+            <button class="btn btn-search" @onclick="SearchFlights">Search</button>
+
+            @if (foundFlights?.Any() == true)
+            {
+                <div class="flight-results">
+                    @foreach (var flight in foundFlights)
+                    {
+                        <div class="flight-card" @onclick="() => SelectFlight(flight)">
+                            <div class="flight-code">@flight.Code</div>
+                            <div class="flight-route">
+                                @flight.Origin → @flight.Destination
+                            </div>
+                            <div class="flight-details">
+                                @flight.Day @flight.DepartureTime.ToString("hh\\:mm") - CAD @flight.Cost
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else if (searched)
+            {
+                <div class="no-results">No flights found</div>
+            }
+        </div>
+    }
+
+    @if (showReservations)
+    {
+        <div class="reservation-search">
+            <h3>Manage Reservations</h3>
+
+            <div class="form-group">
+                <input type="text" placeholder="Reservation Code" @bind="searchCode" />
+                <input type="text" placeholder="Airline" @bind="searchAirline" />
+                <input type="text" placeholder="Traveler Name" @bind="searchName" />
+                <button class="btn btn-search" @onclick="SearchReservations">Search</button>
+            </div>
+
+            @if (foundReservations?.Any() == true)
+            {
+                <div class="reservation-results">
+                    @foreach (var res in foundReservations)
+                    {
+                        <div class="reservation-card" @onclick="() => SelectReservation(res)">
+                            <div class="res-code">@res.Code</div>
+                            <div class="res-details">
+                                @res.TravelerName - @res.Citizenship
+                                <span class="status @(res.IsActive ? "active" : "inactive")">
+                                    @(res.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else if (reservationsSearched)
+            {
+                <div class="no-results">No reservations found</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // State variables
+    private bool showFlights = true;
+    private bool showReservations = false;
+    private List<Models.Flight> foundFlights;
+    private List<Reservation> foundReservations;
+    private string selectedOrigin;
+    private string selectedDestination;
+    private string selectedDay;
+    private string searchCode;
+    private string searchAirline;
+    private string searchName;
+    private bool searched;
+    private bool reservationsSearched;
+
+    private readonly string[] daysOfWeek = {
+        "Monday", "Tuesday", "Wednesday", "Thursday",
+        "Friday", "Saturday", "Sunday"
+    };
+
+    protected override void OnInitialized()
+    {
+        ReservationManager.Initialize(FlightService);
+    }
+
+    private void ShowSection(int section)
+    {
+        showFlights = section == 1;
+        showReservations = section == 2;
+        StateHasChanged();
+    }
+
+    private void SearchFlights()
+    {
+        foundFlights = FlightService.FindFlights(selectedOrigin, selectedDestination, selectedDay);
+        searched = true;
+    }
+
+    private void SearchReservations()
+    {
+        foundReservations = ReservationManager.FindReservations(searchCode, searchAirline, searchName);
+        reservationsSearched = true;
+    }
+
+    private void SelectFlight(Models.Flight flight)
+    {
+        // Implement reservation creation
+    }
+
+    private void SelectReservation(Reservation reservation)
+    {
+        // Implement reservation editing
+    }
+}
